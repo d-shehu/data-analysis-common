@@ -1,2 +1,3 @@
-# data-analysis
-A repository of common data analysis functions in R and Python
+# R data analysis packages
+
+These analysis packages are R specific. Details to be added.
