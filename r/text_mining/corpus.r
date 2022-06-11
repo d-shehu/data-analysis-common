@@ -6,20 +6,15 @@ library(methods)
 library(lubridate)
 library(uuid)
 
-source(fnGetPath(getwd(), "notebooks", "r", "common", "utils", 
-                 "files.r"))
-source(fnGetPath(getwd(), "notebooks", "r", "common", "utils", 
-                 "s3.r"))
+source(paste("..", "utils", "files.r", sep=.Platform$file.sep), chdir = T)
+source(paste("..", "utils", "s3.r", sep=.Platform$file.sep), chdir = T)
 
-source(fnGetPath(getwd(), "notebooks", "r", "common", "text_mining", 
-                 "analysis.r"))
-source(fnGetPath(getwd(), "notebooks", "r", "common", "text_mining", 
-                 "parse.r"))
-source(fnGetPath(getwd(), "notebooks", "r", "common", "text_mining", 
-                 "process.r"))
+source(paste(".", "analysis.r", sep=.Platform$file.sep), chdir = T)
+source(paste(".", "parse.r", sep=.Platform$file.sep), chdir = T)
+source(paste(".", "process.r", sep=.Platform$file.sep), chdir = T)
+source(paste(".", "stats.r", sep=.Platform$file.sep), chdir = T)
 
-
-classCorpusEntry <- setRefClass("corpus_entry", 
+classCorpusEntry <- setRefClass("corpus_entry",
     fields = list(
         source = "character",
         link = "character",
@@ -50,19 +45,19 @@ classCorpusEntry <- setRefClass("corpus_entry",
         },
         # Uniqueness is defined as the combination of source, link, author, title
         entryExists = function(corpus, inSource, inLink, inAuthor, inTitle){
-            corpus %>% 
-                filter(source == inSource & link == inLink & 
+            corpus %>%
+                filter(source == inSource & link == inLink &
                         author == inAuthor & title == inTitle) %>%
                 select(id)
-                
+
         },
         getNameFromID = function(){
             paste0(id, ".dat")
         },
         toTibble = function(){
-            ret <- tibble(`source` = source, `link` = link, `author` = author, `title` = title, `description` = description, 
+            ret <- tibble(`source` = source, `link` = link, `author` = author, `title` = title, `description` = description,
                     `created` = created, `last_updated` = last_updated, `oid` = oid, `id` = id)
-            
+
             if(length(keywords) > 0){
                 ret <- ret %>% mutate(`keywords` = keywords)
             }
@@ -98,9 +93,8 @@ classCorpusEntry <- setRefClass("corpus_entry",
 # To facilitate portability across environments, we will allow
 # "user" or "operator" to set the following environment variables
 # to enable use of S3 buckets.
-classCorpus <- setRefClass("corpus", 
+classCorpus <- setRefClass("corpus",
     fields = list(
-        domain = "character",
         bucket = "character",
         user = "character",
         corpusName = "character",
@@ -108,13 +102,12 @@ classCorpus <- setRefClass("corpus",
         entries = "list"
     ),
     methods = list(
-        initCorpus = function(inDomain, inBucket, inUser, inCorpusName, doCreate = TRUE) {
+        initCorpus = function(inBucket, inUser, inCorpusName, doCreate = TRUE) {
             user <<- inUser
             corpusName <<- inCorpusName
             entries <<- list()
 
-            # Convention is to code as fully qualified domain name
-            bucket <<- paste("s3", inBucket, inDomain, sep = ".")
+            bucket <<- inBucket
             prefix <<- paste(user, corpusName, sep = "/")
 
             if(doCreate){
@@ -135,7 +128,7 @@ classCorpus <- setRefClass("corpus",
                 # Create the entry and add it to the corpus
                 entry <- classCorpusEntry()
                 entry$initEntry(lsMeta$source, lsMeta$link, lsMeta$author, lsMeta$title, lsMeta$published)
-                
+
                 # Store the document
                 fnPutFile(file, entry$getNameFromID(), bucket, docsPrefix)
 
@@ -184,7 +177,7 @@ classCorpus <- setRefClass("corpus",
         getMetadataDF = function(){
             # Gather entries into a data frame
             dfAllEntries <- tibble()
-            for (entry in corpus$entries) {
+            for (entry in entries) {
                 dfAllEntries <- bind_rows(dfAllEntries, entry$toTibble())
             }
             return(dfAllEntries)
@@ -202,30 +195,67 @@ classCorpus <- setRefClass("corpus",
                 FALSE
             })
         },
-        getKeywords = function(){
-            dfAllTerms <- tibble()
-            # Combine all the keywords from all the entries so 
-            # we can do td-idf and more sophisticated keyword extraction
-            # that isn't limited 
-            for(entry in entries){
-                dfTerms <- fnGetTerms(fnGetSanitizedSentences(fnGetSentencesFromText(corpus$getBody(entry))))
-                dfTerms$id <- entry$id
-                dfAllTerms <- bind_rows(dfAllTerms, dfTerms)
-            }
-            dfAllTerms %>% fnGetTopKeywords(5)
+        getSourceStats = function(){
+          dfAllStats <- tibble()
+          # Combine all the keywords from all the entries so
+          # we can do td-idf and more sophisticated keyword extraction
+          # that isn't limited
+          for(entry in entries){
+            dfStats <- fnGetBasicStats(fnGetSanitizedSentences(fnGetSentencesFromText(getBody(entry))))
+            dfStats$id <- entry$id
+            dfStats$source <- entry$source
+            dfStats$title <- entry$title
+            dfAllStats <- bind_rows(dfAllStats, dfStats)
+          }
+          dfAllStats
+        },
+        getTerms = function(){fnGetTopKeywords
+          dfAllSentences <- tibble()
+          # Combine all the keywords from all the entries so
+          # we can do td-idf and more sophisticated keyword extraction
+          # that isn't limited
+          for(entry in entries){
+            dfSentences <- fnGetSanitizedSentences(fnGetSentencesFromText(getBody(entry)))
+            dfAllSentences <- bind_rows(dfAllSentences, dfSentences)
+          }
+          fnGetTerms(dfAllSentences)
+        },
+        getKeywords = function(topN){
+          dfAllTerms <- tibble()
+          # Combine all the keywords from all the entries so
+          # we can do td-idf and more sophisticated keyword extraction
+          # that isn't limited
+          for(entry in entries){
+              dfTerms <- fnGetTerms(fnGetSanitizedSentences(fnGetSentencesFromText(corpus$getBody(entry))))
+              dfTerms$id <- entry$id
+              dfTerms$source <- entry$source
+              dfTerms$title <- entry$title
+              dfAllTerms <- bind_rows(dfAllTerms, dfTerms)
+          }
+          dfAllTerms %>% fnGetTopKeywords(topN)
+        },
+        getNgrams = function(n){
+          dfAllSentences <- tibble()
+          
+          for(entry in entries){
+            dfSentences <- fnGetSanitizedSentences(fnGetSentencesFromText(corpus$getBody(entry)))
+            dfAllSentences <- bind_rows(dfAllSentences, dfSentences)
+          }
+          
+          fnGetngramDataFrame(dfAllSentences, n)
         },
         getRelatedTerms = function(){
-            dfAllRelatedTerms <- tibble()
-            # Combine all the keywords from all the entries so 
+            dfAllSentences <- tibble()
+            # Combine all the keywords from all the entries so
             # we can do td-idf and more sophisticated keyword extraction
-            # that isn't limited 
+            # that isn't limited
             for(entry in entries){
-                dfRelatedTerms <- fnGetPairwiseStats(fnGetSanitizedSentences(fnGetSentencesFromText(corpus$getBody(entry))), FALSE)
-                dfRelatedTerms$id <- entry$id
-                dfAllRelatedTerms <- bind_rows(dfAllRelatedTerms, dfRelatedTerms)
+                dfSentences <- fnGetSanitizedSentences(fnGetSentencesFromText(corpus$getBody(entry)))
+                dfAllSentences <- bind_rows(dfSentences, dfAllSentences)
             }
-            dfAllRelatedTerms
+            # Get all terms correlated across all documents
+            fnGetPairwiseStats(dfAllSentences, FALSE) %>% 
+              filter(item1 != item2)
         }
     ) # end methods
 )
-

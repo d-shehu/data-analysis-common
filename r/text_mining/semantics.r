@@ -1,4 +1,3 @@
-
 library(spacyr)
 
 fnInit <- function(){

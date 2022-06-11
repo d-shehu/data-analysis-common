@@ -5,6 +5,9 @@ library(rvest)
 library(urltools)
 library(xml2)
 
+# TODO: Obviously need a better way to handle this as we added more
+# sources both public and private. Possibly having a handler that
+# gets passed in by the caller.
 KnownSources <- c("medium", "towardsdatascience", "analyticsvidhya")
 
 # Extract source, author, title

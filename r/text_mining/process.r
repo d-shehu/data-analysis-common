@@ -23,6 +23,8 @@ fnGetSanitizedSentences <- function(dfSentences){
     # Unnest and remove stop words and then recombine into sentences
     dfSentences %>% 
         unnest_tokens(word, sentence, to_lower=TRUE) %>%
+        # Remove single digit numbers
+        filter(!grepl("^\\d$", word)) %>%
         anti_join(stop_words) %>% 
         group_by(paragraph_num, sentence_num) %>%
         summarize(sentence=str_c(word, collapse=" "), .groups="keep") %>%

@@ -31,9 +31,9 @@ fnGetPairwiseCor <- function(dfSanitizedSentences, paragraphAsID){
 }
 
 fnGetPairwiseStats <- function(dfSanitizedSentences, paragraphAsID){
-    inner_join(fnGetPairwiseCount(dfSanitizedSentences, paragraphAsID), 
+    merge(fnGetPairwiseCount(dfSanitizedSentences, paragraphAsID), 
                 fnGetPairwiseCor(dfSanitizedSentences, paragraphAsID),
-                by = c("item 1", "item 2"))
+                by = c("item1", "item2"), all=TRUE)
 }
 
 # Expects a data frame with id, term, n and tf(frequency) and uses

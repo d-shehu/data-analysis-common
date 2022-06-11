@@ -7,16 +7,12 @@
 # To speed up data processing, we should store the soure
 # locally.
 
-source(fnGetPath(getwd(), "notebooks", "r", "common", "text_mining", 
-                 "corpus.r"))
-source(fnGetPath(getwd(), "notebooks", "r", "common", "text_mining", 
-                 "selenium.r"))
-source(fnGetPath(getwd(), "notebooks", "r", "common", "text_mining", 
-                 "parse.r"))
-source(fnGetPath(getwd(), "notebooks", "r", "common", "utils", 
-                 "files.r"))
+source(paste(".","corpus.r", sep=.Platform$file.sep), chdir = T)
+source(paste(".", "selenium.r", sep=.Platform$file.sep), chdir = T)
+source(paste(".", "parse.r", sep=.Platform$file.sep), chdir = T)
+source(paste("..", "utils", "files.r", sep=.Platform$file.sep), chdir = T)
 
-classCollector <- setRefClass("collector", 
+classCollector <- setRefClass("collector",
     fields = list(
         corpus = "corpus",
         selServer = "list",
