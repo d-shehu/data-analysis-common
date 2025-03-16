@@ -162,8 +162,18 @@ class Scraper:
 
         return urlNew
         
-    def waitForURLToChange(self, url, timeout=5):
-        WebDriverWait(self.browser, timeout).until(EC.url_changes(url))
+    def waitForURLToChange(self, url, timeout=5, suppressError = False):
+        success = False
+        
+        try:
+            WebDriverWait(self.browser, timeout).until(EC.url_changes(url))
+            success = True
+        except Exception as e:
+            if not suppressError:
+                print("Error: timed out while waiting for page to load new url")
+
+        return success
+            
         
     def waitForElementToLoadByXPath(self, elem, timeout=5, suppressError=False):
         return self.waitForElementToLoad(elem, By.XPATH, timeout, suppressError)
@@ -310,16 +320,40 @@ class Scraper:
             hasMore = len(matchingElements) > matchCount
 
         return matchingElements
+
+    def setElementAttributeByXPath(self, elem, attribute, value, timeout=5):
+        return self.setElementAttribute(elem, attribute, value, By.XPATH, timeout)
         
-    def setElementText(self, elem, text, byType=By.ID):
+    def setElementAttribute(self, elem, attribute, value, byType=By.ID, timeout=5):
+        result = False
+
+        try:
+            if self.browser is not None:
+                match = self.getElement(elem, byType)
+                setAttrScript = f"arguments[0].setAttribute('{attribute}', '{value}')"
+                print("Script: ", setAttrScript)
+                self.executeScriptOnElement(elem, "", timeout)
+                result=True
+            else:
+                print("Error: browser service is not initialized")
+        except:
+            print(f"Error: unable to access {elem}. Can't find the field by {byType}.")
+
+        return result
+    
+    def setElementTextByXPath(self, elem, text, hitEnter = False):
+        return self.setElementText(elem, text, By.XPATH, hitEnter)
+        
+    def setElementText(self, elem, text, byType=By.ID, hitEnter = False):
         result = False
         
         try:
             if self.browser is not None:
-                #match = self.browser.find_element(byType, elem)
                 match = self.getElement(elem, byType)
                 match.clear()
                 match.send_keys(text)
+                if hitEnter:
+                    match.send_keys(Keys.RETURN)
                 result=True
             else:
                 print("Error: browser service is not initialized")
@@ -354,7 +388,7 @@ class Scraper:
         if not result:
             print(f"Error: unable to click on element: {elem}")
             if lastException is not None:
-                print(e)
+                print(lastException)
             
         return result
 
